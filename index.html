@@ -128,9 +128,13 @@ charCards.forEach(c=>{c.onclick=()=>{charCards.forEach(x=>{x.classList.remove('s
 btnStart.onclick=()=>{if(!selectedChar)return;startGame();};
 
 // ═══════════════ START ═══════════════
+let countdown=0,showHints=0;
+
 function startGame(){
   charImg=chars[selectedChar].img;
-  score=0;coins=0;distance=0;lives=3;speed=6;lane=1;playerY=0;playerTargetY=0;playerVY=0;jumping=false;slideTimer=0;obstacles=[];coinItems=[];stars=[];groundOffset=0;frame=0;
+  score=0;coins=0;distance=0;lives=3;speed=6;lane=1;playerY=W*.5;playerTargetY=W*.5;playerVY=0;jumping=false;slideTimer=0;obstacles=[];coinItems=[];stars=[];groundOffset=0;frame=0;
+  countdown=90; // 1.5 second countdown
+  showHints=180; // show hints for 3 seconds
   initStars();
   document.getElementById('screenChar').classList.remove('active');
   document.getElementById('screenOver').classList.remove('active');
@@ -146,6 +150,8 @@ function initStars(){stars=[];for(let i=0;i<120;i++)stars.push({x:Math.random()*
 function loop(){
   if(!playing){requestAnimationFrame(loop);return;}
   frame++;
+  if(countdown>0){countdown--;render();requestAnimationFrame(loop);return;} // wait during countdown
+  if(showHints>0)showHints--;
   update();
   render();
   requestAnimationFrame(loop);
@@ -183,7 +189,8 @@ function update(){
   for(const s of stars){s.y+=s.s;if(s.y>H*.7){s.y=-5;s.x=Math.random()*W;}}
 
   // Spawn obstacles
-  if(frame%Math.max(25,70-speed*2)===0){
+  const spawnEvery=frame<60?30:Math.max(25,70-speed*2);
+  if(frame%spawnEvery===0){
     const types=['barrier','tall','single','single'];
     const type=types[Math.floor(Math.random()*types.length)];
     const l=type==='single'?Math.floor(Math.random()*3):-1;
@@ -362,13 +369,33 @@ function render(){
   if(lives<3&&frame%10<5){
     X.fillStyle='rgba(255,255,255,.08)';X.fillRect(0,0,W,H);
   }
+
+  // Countdown overlay
+  if(countdown>0){
+    X.fillStyle='rgba(0,0,0,.5)';X.fillRect(0,0,W,H);
+    const cdNum=Math.ceil(countdown/30);
+    X.fillStyle='#fff';X.font='bold 72px Orbitron,sans-serif';X.textAlign='center';X.textBaseline='middle';
+    X.fillText(cdNum>0?cdNum:'GO!',W/2,H/2-20);
+    X.font='16px Orbitron,sans-serif';
+    X.fillText(cdNum>0?'Get Ready!':'RUN!',W/2,H/2+40);
+  }
+
+  // Control hints
+  if(showHints>0&&countdown<=0){
+    const alpha=Math.min(1,showHints/60);
+    X.fillStyle=`rgba(0,0,0,${.6*alpha})`;
+    X.beginPath();X.roundRect(W/2-150,H-100,300,70,14);X.fill();
+    X.fillStyle=`rgba(255,255,255,${alpha})`;X.font='bold 12px Orbitron,sans-serif';X.textAlign='center';
+    X.fillText('← → Switch Lanes',W/2,H-72);
+    X.fillText('↑ Jump    ↓ Slide',W/2,H-50);
+  }
 }
 
 // ═══════════════ CONTROLS ═══════════════
 const keys={};
 document.addEventListener('keydown',e=>{
   keys[e.key]=true;
-  if(!playing)return;
+  if(!playing||countdown>0)return;
   if(e.key==='ArrowLeft'||e.key==='a')lane=Math.max(0,lane-1);
   if(e.key==='ArrowRight'||e.key==='d')lane=Math.min(2,lane+1);
   if((e.key==='ArrowUp'||e.key==='w'||e.key===' ')&&!jumping&&slideTimer<=0){jumping=true;playerVY=-9;}
@@ -383,7 +410,7 @@ document.addEventListener('touchstart',e=>{
   touchStartX=e.touches[0].clientX;touchStartY=e.touches[0].clientY;touchStartTime=Date.now();
 });
 document.addEventListener('touchend',e=>{
-  if(!playing)return;
+  if(!playing||countdown>0)return;
   const dx=e.changedTouches[0].clientX-touchStartX;
   const dy=e.changedTouches[0].clientY-touchStartY;
   const dt=Date.now()-touchStartTime;
